@@ -3,6 +3,7 @@ import { Calendar as CalendarPicker } from '@/components/ui/calendar'
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogHeader,
     DialogTitle,
     DialogTrigger,
@@ -82,6 +83,9 @@ export function KanbanFilters({ tasks, onFilterChange }: KanbanFiltersProps) {
             <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
                     <DialogTitle>Filter Tasks</DialogTitle>
+                    <DialogDescription>
+                        Filter tasks by search, assignee, label, and date range
+                    </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                     <div className="flex items-center gap-2">

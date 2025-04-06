@@ -2,12 +2,12 @@ import { Button } from '@/components/ui/button'
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { useKanbanStore } from '@/store/kanban'
-import { useNotesStore } from '@/store/notes'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { FileText, Trash2 } from 'lucide-react'
@@ -24,8 +24,6 @@ export function TaskDetailsDialog({
     onClose,
 }: TaskDetailsDialogProps) {
     const { tasks, updateTask } = useKanbanStore()
-    const { notes } = useNotesStore()
-
     const task = tasks.find((t) => t.id === taskId)
     if (!task) return null
 
@@ -44,6 +42,9 @@ export function TaskDetailsDialog({
             <DialogContent className="max-w-2xl">
                 <DialogHeader>
                     <DialogTitle>Task Details</DialogTitle>
+                    <DialogDescription>
+                        View and manage task information and attachments
+                    </DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-6">

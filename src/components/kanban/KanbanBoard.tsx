@@ -1,5 +1,12 @@
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog'
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from '@/components/ui/dialog'
 import { useKanbanStore } from '@/store/kanban'
 import type { ColumnType, Task } from '@/types'
 import {
@@ -134,6 +141,12 @@ export function KanbanBoard() {
                             </Button>
                         </DialogTrigger>
                         <DialogContent>
+                            <DialogHeader>
+                                <DialogTitle>Add Task</DialogTitle>
+                                <DialogDescription>
+                                    Create a new task for your Kanban board
+                                </DialogDescription>
+                            </DialogHeader>
                             <AddTaskForm
                                 onClose={() => setIsAddTaskOpen(false)}
                             />

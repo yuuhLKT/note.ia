@@ -1,100 +1,161 @@
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
-import type { DriveFile } from '@/types'
-import { Cloud, Upload } from 'lucide-react'
+import { useGoogleDrive } from '@/hooks/use-google-drive'
+import { useToast } from '@/hooks/use-toast'
+import { uploadFile } from '@/services/googleDrive'
+import { Upload } from 'lucide-react'
 import { useState } from 'react'
-import { FileUploadModal } from './FileUploadModal'
 
 interface DriveUploadProps {
-    onAuthStart?: () => void
-    onUploadComplete?: (file: DriveFile) => void
+    onUploadComplete: (file: any) => void
 }
 
-export function DriveUpload({
-    onAuthStart,
-    onUploadComplete,
-}: DriveUploadProps) {
-    const [isDragging, setIsDragging] = useState(false)
-    const handleFileUpload = (files: File[]) => {
-        // TODO: Implement file upload logic
-        console.log('Files to upload:', files)
+export function DriveUpload({ onUploadComplete }: DriveUploadProps) {
+    const { toast } = useToast()
+    const { isConnected, login, account } = useGoogleDrive()
+    const [isUploading, setIsUploading] = useState(false)
+    const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+
+    const handleConnect = () => {
+        login()
     }
 
-    const handleDragOver = (e: React.DragEvent) => {
-        e.preventDefault()
-        setIsDragging(true)
+    const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(event.target.files || [])
+        setSelectedFiles(files)
     }
 
-    const handleDragLeave = (e: React.DragEvent) => {
-        e.preventDefault()
-        setIsDragging(false)
-    }
+    const handleUpload = async () => {
+        if (!isConnected) {
+            toast({
+                title: 'Error',
+                description: 'Please connect to Google Drive first',
+                variant: 'destructive',
+            })
+            return
+        }
 
-    const handleDrop = (e: React.DragEvent) => {
-        e.preventDefault()
-        setIsDragging(false)
-        const files = Array.from(e.dataTransfer.files)
-        handleFileUpload(files)
+        if (selectedFiles.length === 0) {
+            toast({
+                title: 'Error',
+                description: 'Please select at least one file',
+                variant: 'destructive',
+            })
+            return
+        }
+
+        setIsUploading(true)
+
+        try {
+            for (const file of selectedFiles) {
+                const uploadedFile = await uploadFile(file)
+                onUploadComplete(uploadedFile)
+            }
+
+            toast({
+                title: 'Success',
+                description: 'Files uploaded successfully',
+            })
+
+            setSelectedFiles([])
+        } catch (error) {
+            toast({
+                title: 'Error',
+                description: 'Failed to upload files',
+                variant: 'destructive',
+            })
+        } finally {
+            setIsUploading(false)
+        }
     }
 
     return (
         <div className="space-y-4">
-            <div className="flex items-center gap-4">
-                <Button
-                    variant="outline"
-                    className="flex-1"
-                    onClick={onAuthStart}
-                >
-                    <Cloud className="mr-2 h-4 w-4" />
-                    Connect Google Drive
+            {!isConnected ? (
+                <Button onClick={handleConnect} className="w-full">
+                    <Upload className="mr-2 h-4 w-4" />
+                    Connect to Google Drive
                 </Button>
-                <FileUploadModal
-                    trigger={
-                        <Button variant="outline" className="flex-1">
-                            <Upload className="mr-2 h-4 w-4" />
-                            Upload Files
-                        </Button>
-                    }
-                    onUploadComplete={handleFileUpload}
-                />
-            </div>
-            <Card
-                className={`border-2 border-dashed p-8 text-center transition-colors ${
-                    isDragging
-                        ? 'border-primary bg-primary/5'
-                        : 'hover:border-primary/50'
-                }`}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-            >
-                <div className="flex flex-col items-center gap-2">
-                    <FileUploadModal
-                        trigger={
-                            <div className="flex flex-col items-center gap-2 cursor-pointer">
-                                <div className="relative">
-                                    <Cloud className="h-8 w-8 text-muted-foreground" />
-                                    {isDragging && (
-                                        <div className="absolute inset-0 flex items-center justify-center">
-                                            <div className="animate-ping h-8 w-8 rounded-full bg-primary/20" />
-                                        </div>
-                                    )}
-                                </div>
+            ) : (
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <img
+                                src={account?.picture}
+                                alt={account?.name}
+                                className="h-8 w-8 rounded-full"
+                            />
+                            <div>
+                                <p className="font-medium">{account?.name}</p>
                                 <p className="text-sm text-muted-foreground">
-                                    {isDragging
-                                        ? 'Drop your files here'
-                                        : 'Drag and drop your files here or click to browse'}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                    Supported formats: PDF, DOC, XLS, PPT, JPG,
-                                    PNG
+                                    {account?.email}
                                 </p>
                             </div>
-                        }
-                        onUploadComplete={handleFileUpload}
-                    />
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <input
+                            type="file"
+                            multiple
+                            onChange={handleFileSelect}
+                            className="hidden"
+                            id="file-upload"
+                        />
+                        <label
+                            htmlFor="file-upload"
+                            className="flex items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer hover:border-primary"
+                        >
+                            <div className="text-center">
+                                <Upload className="mx-auto h-8 w-8 text-muted-foreground" />
+                                <p className="mt-2 text-sm text-muted-foreground">
+                                    Click to select files or drag and drop
+                                </p>
+                            </div>
+                        </label>
+
+                        {selectedFiles.length > 0 && (
+                            <div className="space-y-2">
+                                <p className="text-sm font-medium">
+                                    Selected Files:
+                                </p>
+                                <ul className="space-y-1">
+                                    {selectedFiles.map((file, index) => (
+                                        <li
+                                            key={index}
+                                            className="flex items-center justify-between p-2 bg-muted rounded"
+                                        >
+                                            <span className="text-sm">
+                                                {file.name}
+                                            </span>
+                                            <button
+                                                onClick={() =>
+                                                    setSelectedFiles(
+                                                        selectedFiles.filter(
+                                                            (_, i) =>
+                                                                i !== index
+                                                        )
+                                                    )
+                                                }
+                                                className="text-muted-foreground hover:text-destructive"
+                                            >
+                                                ×
+                                            </button>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+
+                        <Button
+                            onClick={handleUpload}
+                            disabled={isUploading || selectedFiles.length === 0}
+                            className="w-full"
+                        >
+                            {isUploading ? 'Uploading...' : 'Upload Files'}
+                        </Button>
+                    </div>
                 </div>
-            </Card>
+            )}
         </div>
     )
 }
