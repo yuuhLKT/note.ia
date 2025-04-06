@@ -1,3 +1,4 @@
+import { FileUploadModal } from '@/components/files/FileUploadModal'
 import { Button } from '@/components/ui/button'
 import { Calendar as CalendarPicker } from '@/components/ui/calendar'
 import {
@@ -27,7 +28,7 @@ import { useNotesStore } from '@/store/notes'
 import type { ColumnType, Priority } from '@/types'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Calendar, X } from 'lucide-react'
+import { Calendar, Upload, X } from 'lucide-react'
 import { useState } from 'react'
 
 // Mock files
@@ -65,11 +66,8 @@ export function AddTaskForm({ onClose }: AddTaskFormProps) {
     >([])
     const [selectedNotes, setSelectedNotes] = useState<string[]>([])
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files) {
-            const newFiles = Array.from(e.target.files)
-            setAttachments([...attachments, ...newFiles])
-        }
+    const handleFileUpload = (files: File[]) => {
+        setAttachments([...attachments, ...files])
     }
 
     const handleRemoveAttachment = (index: number) => {
@@ -293,7 +291,7 @@ export function AddTaskForm({ onClose }: AddTaskFormProps) {
 
                     <div className="space-y-2">
                         <Label>Attachments</Label>
-                        <div className="space-y-2">
+                        <div className="space-y-4">
                             <div className="space-y-2">
                                 <Label className="text-sm font-medium">
                                     Existing Files
@@ -341,61 +339,75 @@ export function AddTaskForm({ onClose }: AddTaskFormProps) {
                                 <Label className="text-sm font-medium">
                                     Upload New Files
                                 </Label>
-                                <Input
-                                    type="file"
-                                    onChange={handleFileChange}
-                                    multiple
+                                <FileUploadModal
+                                    trigger={
+                                        <Button
+                                            variant="outline"
+                                            className="w-full"
+                                        >
+                                            <Upload className="mr-2 h-4 w-4" />
+                                            Upload Files
+                                        </Button>
+                                    }
+                                    onUploadComplete={handleFileUpload}
                                 />
                             </div>
 
                             {(selectedExistingFiles.length > 0 ||
                                 attachments.length > 0) && (
-                                <div className="flex flex-wrap gap-2 p-2 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                                    {selectedExistingFiles.map((fileId) => {
-                                        const file = mockFiles.find(
-                                            (f) => f.id === fileId
-                                        )
-                                        return (
+                                <div className="space-y-2">
+                                    <h4 className="text-sm font-medium">
+                                        Selected files:
+                                    </h4>
+                                    <div className="space-y-2">
+                                        {selectedExistingFiles.map((fileId) => {
+                                            const file = mockFiles.find(
+                                                (f) => f.id === fileId
+                                            )
+                                            return (
+                                                <div
+                                                    key={fileId}
+                                                    className="flex items-center justify-between p-2 bg-muted rounded-md"
+                                                >
+                                                    <span className="text-sm">
+                                                        {file?.name}
+                                                    </span>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={() =>
+                                                            handleRemoveExistingFile(
+                                                                fileId
+                                                            )
+                                                        }
+                                                    >
+                                                        <X className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            )
+                                        })}
+                                        {attachments.map((file, index) => (
                                             <div
-                                                key={fileId}
-                                                className="flex items-center gap-1"
+                                                key={`new-${index}`}
+                                                className="flex items-center justify-between p-2 bg-muted rounded-md"
                                             >
-                                                <span className="px-3 py-1 text-sm rounded-full bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
-                                                    {file?.name}
+                                                <span className="text-sm">
+                                                    {file.name}
                                                 </span>
-                                                <button
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
                                                     onClick={() =>
-                                                        handleRemoveExistingFile(
-                                                            fileId
+                                                        handleRemoveAttachment(
+                                                            index
                                                         )
                                                     }
-                                                    className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                                                 >
                                                     <X className="h-4 w-4" />
-                                                </button>
+                                                </Button>
                                             </div>
-                                        )
-                                    })}
-                                    {attachments.map((file, index) => (
-                                        <div
-                                            key={`new-${index}`}
-                                            className="flex items-center gap-1"
-                                        >
-                                            <span className="px-3 py-1 text-sm rounded-full bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
-                                                {file.name}
-                                            </span>
-                                            <button
-                                                onClick={() =>
-                                                    handleRemoveAttachment(
-                                                        index
-                                                    )
-                                                }
-                                                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                                            >
-                                                <X className="h-4 w-4" />
-                                            </button>
-                                        </div>
-                                    ))}
+                                        ))}
+                                    </div>
                                 </div>
                             )}
                         </div>

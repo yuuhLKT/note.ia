@@ -1,3 +1,4 @@
+import { FileUploadModal } from '@/components/files/FileUploadModal'
 import { Button } from '@/components/ui/button'
 import {
     Dialog,
@@ -20,7 +21,7 @@ import { useKanbanStore } from '@/store/kanban'
 import { useNotesStore } from '@/store/notes'
 import { ColumnType, Priority } from '@/types'
 import { format } from 'date-fns'
-import { CalendarIcon, X } from 'lucide-react'
+import { CalendarIcon, Upload, X } from 'lucide-react'
 import { useState } from 'react'
 
 // Mock files
@@ -30,7 +31,14 @@ const mockFiles = [
     { id: '3', name: 'Planilha.xlsx', type: 'xls', size: '1.8 MB' },
     { id: '4', name: 'Imagem.png', type: 'img', size: '3.2 MB' },
     { id: '5', name: 'Contrato.docx', type: 'doc', size: '1.5 MB' },
-]
+] as const
+
+interface MockFile {
+    id: string
+    name: string
+    type: string
+    size: string
+}
 
 interface EditTaskDialogProps {
     isOpen: boolean
@@ -57,9 +65,10 @@ export function EditTaskDialog({ isOpen, onClose, task }: EditTaskDialogProps) {
         dueDate: task.dueDate || new Date(),
     })
     const [newLabel, setNewLabel] = useState('')
-    const [selectedFiles, setSelectedFiles] = useState<string[]>(
-        task.attachments || []
-    )
+    const [attachments, setAttachments] = useState<File[]>([])
+    const [selectedExistingFiles, setSelectedExistingFiles] = useState<
+        string[]
+    >(task.attachments || [])
     const [selectedNotes, setSelectedNotes] = useState<string[]>(
         task.notes || []
     )
@@ -67,7 +76,10 @@ export function EditTaskDialog({ isOpen, onClose, task }: EditTaskDialogProps) {
     const handleSave = () => {
         updateTask(task.id, {
             ...editedTask,
-            attachments: selectedFiles,
+            attachments: [
+                ...selectedExistingFiles,
+                ...attachments.map((file) => file.name),
+            ],
             notes: selectedNotes,
         })
         onClose()
@@ -92,16 +104,18 @@ export function EditTaskDialog({ isOpen, onClose, task }: EditTaskDialogProps) {
         })
     }
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = e.target.files
-        if (files) {
-            const fileNames = Array.from(files).map((file) => file.name)
-            setSelectedFiles([...selectedFiles, ...fileNames])
-        }
+    const handleFileUpload = (files: File[]) => {
+        setAttachments([...attachments, ...files])
     }
 
-    const removeFile = (fileName: string) => {
-        setSelectedFiles((prev) => prev.filter((file) => file !== fileName))
+    const handleRemoveAttachment = (index: number) => {
+        setAttachments(attachments.filter((_, i) => i !== index))
+    }
+
+    const handleRemoveExistingFile = (fileName: string) => {
+        setSelectedExistingFiles(
+            selectedExistingFiles.filter((file) => file !== fileName)
+        )
     }
 
     const handleRemoveNote = (noteId: string) => {
@@ -267,7 +281,7 @@ export function EditTaskDialog({ isOpen, onClose, task }: EditTaskDialogProps) {
                     </div>
                     <div className="space-y-2">
                         <Label>Attachments</Label>
-                        <div className="space-y-2">
+                        <div className="space-y-4">
                             <div className="space-y-2">
                                 <Label className="text-sm font-medium">
                                     Existing Files
@@ -277,10 +291,12 @@ export function EditTaskDialog({ isOpen, onClose, task }: EditTaskDialogProps) {
                                     onValueChange={(value) => {
                                         if (
                                             value &&
-                                            !selectedFiles.includes(value)
+                                            !selectedExistingFiles.includes(
+                                                value
+                                            )
                                         ) {
-                                            setSelectedFiles([
-                                                ...selectedFiles,
+                                            setSelectedExistingFiles([
+                                                ...selectedExistingFiles,
                                                 value,
                                             ])
                                         }
@@ -292,12 +308,12 @@ export function EditTaskDialog({ isOpen, onClose, task }: EditTaskDialogProps) {
                                     <SelectContent>
                                         {mockFiles
                                             .filter(
-                                                (file) =>
-                                                    !selectedFiles.includes(
+                                                (file: MockFile) =>
+                                                    !selectedExistingFiles.includes(
                                                         file.name
                                                     )
                                             )
-                                            .map((file) => (
+                                            .map((file: MockFile) => (
                                                 <SelectItem
                                                     key={file.id}
                                                     value={file.name}
@@ -313,31 +329,72 @@ export function EditTaskDialog({ isOpen, onClose, task }: EditTaskDialogProps) {
                                 <Label className="text-sm font-medium">
                                     Upload New Files
                                 </Label>
-                                <Input
-                                    type="file"
-                                    onChange={handleFileChange}
-                                    multiple
+                                <FileUploadModal
+                                    trigger={
+                                        <Button
+                                            variant="outline"
+                                            className="w-full"
+                                        >
+                                            <Upload className="mr-2 h-4 w-4" />
+                                            Upload Files
+                                        </Button>
+                                    }
+                                    onUploadComplete={handleFileUpload}
                                 />
                             </div>
 
-                            {selectedFiles.length > 0 && (
-                                <div className="flex flex-wrap gap-2 p-2 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                                    {selectedFiles.map((file) => (
-                                        <div
-                                            key={file}
-                                            className="flex items-center gap-1"
-                                        >
-                                            <span className="px-3 py-1 text-sm rounded-full bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
-                                                {file}
-                                            </span>
-                                            <button
-                                                onClick={() => removeFile(file)}
-                                                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                            {(selectedExistingFiles.length > 0 ||
+                                attachments.length > 0) && (
+                                <div className="space-y-2">
+                                    <h4 className="text-sm font-medium">
+                                        Selected files:
+                                    </h4>
+                                    <div className="space-y-2">
+                                        {selectedExistingFiles.map(
+                                            (fileName) => (
+                                                <div
+                                                    key={`existing-${fileName}`}
+                                                    className="flex items-center justify-between p-2 bg-muted rounded-md"
+                                                >
+                                                    <span className="text-sm">
+                                                        {fileName}
+                                                    </span>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={() =>
+                                                            handleRemoveExistingFile(
+                                                                fileName
+                                                            )
+                                                        }
+                                                    >
+                                                        <X className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            )
+                                        )}
+                                        {attachments.map((file, index) => (
+                                            <div
+                                                key={`new-${index}`}
+                                                className="flex items-center justify-between p-2 bg-muted rounded-md"
                                             >
-                                                <X className="h-4 w-4" />
-                                            </button>
-                                        </div>
-                                    ))}
+                                                <span className="text-sm">
+                                                    {file.name}
+                                                </span>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() =>
+                                                        handleRemoveAttachment(
+                                                            index
+                                                        )
+                                                    }
+                                                >
+                                                    <X className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
                         </div>
