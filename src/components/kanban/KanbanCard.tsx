@@ -61,6 +61,10 @@ export function KanbanCard({ task }: KanbanCardProps) {
         }
     }
 
+    const handleNoteClick = (noteId: string) => {
+        navigate(`/notes/editor/${noteId}`)
+    }
+
     return (
         <>
             <div
@@ -238,7 +242,7 @@ export function KanbanCard({ task }: KanbanCardProps) {
                                                 key={noteId}
                                                 className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600"
                                                 onClick={() =>
-                                                    navigate(`/notes/${noteId}`)
+                                                    handleNoteClick(noteId)
                                                 }
                                             >
                                                 {note?.title}
@@ -253,7 +257,7 @@ export function KanbanCard({ task }: KanbanCardProps) {
             </Dialog>
 
             <EditTaskDialog
-                task={task}
+                taskId={task.id}
                 isOpen={isEditDialogOpen}
                 onClose={() => setIsEditDialogOpen(false)}
             />

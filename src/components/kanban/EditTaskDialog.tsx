@@ -1,5 +1,5 @@
-import { FileUploadModal } from '@/components/files/FileUploadModal'
 import { Button } from '@/components/ui/button'
+import { Calendar as CalendarPicker } from '@/components/ui/calendar'
 import {
     Dialog,
     DialogContent,
@@ -9,6 +9,11 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from '@/components/ui/popover'
 import {
     Select,
     SelectContent,
@@ -21,10 +26,11 @@ import { useGoogleDrive } from '@/hooks/use-google-drive'
 import { listFiles } from '@/services/googleDrive'
 import { useKanbanStore } from '@/store/kanban'
 import { useNotesStore } from '@/store/notes'
-import { ColumnType, Priority } from '@/types'
+import { Task } from '@/types'
 import { format } from 'date-fns'
-import { CalendarIcon, Upload, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { ptBR } from 'date-fns/locale'
+import { Calendar, Upload, X } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
 
 interface DriveFile {
     id: string
@@ -35,102 +41,130 @@ interface DriveFile {
 }
 
 interface EditTaskDialogProps {
+    taskId: string
     isOpen: boolean
     onClose: () => void
-    task: {
-        id: string
-        title: string
-        description?: string
-        column: ColumnType
-        labels?: string[]
-        assignee?: string
-        dueDate?: Date
-        priority?: Priority
-        attachments?: string[]
-        notes?: string[]
-    }
 }
 
-export function EditTaskDialog({ isOpen, onClose, task }: EditTaskDialogProps) {
-    const { updateTask } = useKanbanStore()
+export function EditTaskDialog({
+    taskId,
+    isOpen,
+    onClose,
+}: EditTaskDialogProps) {
+    const { tasks, updateTask } = useKanbanStore()
     const { notes } = useNotesStore()
     const { isConnected } = useGoogleDrive()
-    const [driveFiles, setDriveFiles] = useState<DriveFile[]>([])
-    const [editedTask, setEditedTask] = useState({
-        ...task,
-        dueDate: task.dueDate || new Date(),
-    })
-    const [newLabel, setNewLabel] = useState('')
-    const [attachments, setAttachments] = useState<File[]>([])
+    const [driveFiles, setDriveFiles] = useState<
+        Array<{ id: string; name: string }>
+    >([])
+    const [dateError, setDateError] = useState('')
+    const [showCalendar, setShowCalendar] = useState(false)
+    const [currentLabel, setCurrentLabel] = useState('')
+    const [attachments, setAttachments] = useState<(File | string)[]>([])
     const [selectedExistingFiles, setSelectedExistingFiles] = useState<
         string[]
-    >(task.attachments || [])
-    const [selectedNotes, setSelectedNotes] = useState<string[]>(
-        task.notes || []
-    )
+    >([])
+    const [selectedNotes, setSelectedNotes] = useState<string[]>([])
+    const [editedTask, setEditedTask] = useState<Task | null>(null)
+
+    const loadDriveFiles = useCallback(async () => {
+        if (!isConnected) return
+        try {
+            const files = await listFiles()
+            setDriveFiles(
+                files.map((file: DriveFile) => ({
+                    id: file.id,
+                    name: file.name,
+                }))
+            )
+        } catch (error) {
+            console.error('Error loading drive files:', error)
+        }
+    }, [isConnected])
 
     useEffect(() => {
         if (isConnected) {
             loadDriveFiles()
         }
-    }, [isConnected])
+    }, [isConnected, loadDriveFiles])
 
-    const loadDriveFiles = async () => {
-        try {
-            const files = await listFiles()
-            setDriveFiles(files)
-        } catch (error) {
-            console.error('Error loading drive files:', error)
+    useEffect(() => {
+        if (tasks.find((t) => t.id === taskId)) {
+            const task = tasks.find((t) => t.id === taskId)
+            if (task) {
+                setEditedTask({ ...task })
+                setAttachments(task.attachments?.map((file) => file) || [])
+                setSelectedExistingFiles(task.attachments || [])
+                setSelectedNotes(task.notes || [])
+            }
+        }
+    }, [tasks, taskId])
+
+    const task = tasks.find((t) => t.id === taskId)
+    if (!task || !editedTask) return null
+
+    const handleFileUpload = (files?: File[]) => {
+        if (files) {
+            setAttachments((prev) => [...prev, ...files])
         }
     }
 
-    const handleSave = () => {
-        updateTask(task.id, {
-            ...editedTask,
-            attachments: [
-                ...selectedExistingFiles,
-                ...attachments.map((file) => file.name),
-            ],
-            notes: selectedNotes,
-        })
-        onClose()
-    }
-
-    const handleLabelKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter' && newLabel.trim()) {
-            setEditedTask({
-                ...editedTask,
-                labels: [...(editedTask.labels || []), newLabel.trim()],
-            })
-            setNewLabel('')
-        }
-    }
-
-    const removeLabel = (labelToRemove: string) => {
-        setEditedTask({
-            ...editedTask,
-            labels: editedTask.labels?.filter(
-                (label) => label !== labelToRemove
-            ),
-        })
-    }
-
-    const handleFileUpload = (files: File[]) => {
-        setAttachments([...attachments, ...files])
-    }
-
-    const handleRemoveAttachment = (index: number) => {
-        setAttachments(attachments.filter((_, i) => i !== index))
-    }
-
-    const handleRemoveExistingFile = (fileId: string) => {
-        setSelectedExistingFiles(
-            selectedExistingFiles.filter((id) => id !== fileId)
+    const handleRemoveAttachment = (fileId: string) => {
+        setSelectedExistingFiles((prev) => prev.filter((id) => id !== fileId))
+        setAttachments((prev) =>
+            prev.filter((attachment) =>
+                typeof attachment === 'string' ? attachment !== fileId : true
+            )
         )
     }
 
     const handleRemoveNote = (noteId: string) => {
         setSelectedNotes((prev) => prev.filter((id) => id !== noteId))
+    }
+
+    const handleDateChange = (date: Date | undefined) => {
+        if (date) {
+            const today = new Date()
+            today.setHours(0, 0, 0, 0)
+            if (date < today) {
+                setDateError('Date cannot be in the past')
+                return
+            }
+            setDateError('')
+        }
+        setEditedTask({ ...editedTask, dueDate: date })
+        setShowCalendar(false)
+    }
+
+    const handleLabelsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setCurrentLabel(e.target.value)
+    }
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter' && currentLabel.trim()) {
+            e.preventDefault()
+            setEditedTask({
+                ...editedTask,
+                labels: [...(editedTask.labels || []), currentLabel.trim()],
+            })
+            setCurrentLabel('')
+        }
+    }
+
+    const handleSaveChanges = () => {
+        // Combine only the new files with the selected existing files
+        const newFiles = attachments
+            .filter((attachment) => typeof attachment !== 'string')
+            .map((attachment) => (attachment as File).name)
+
+        const updatedAttachments = [...newFiles, ...selectedExistingFiles]
+
+        updateTask(task.id, {
+            ...editedTask,
+            attachments: updatedAttachments,
+            notes: selectedNotes,
+        })
+        onClose()
     }
 
     return (
@@ -139,7 +173,7 @@ export function EditTaskDialog({ isOpen, onClose, task }: EditTaskDialogProps) {
                 <DialogHeader>
                     <DialogTitle>Edit Task</DialogTitle>
                     <DialogDescription>
-                        Edit task details and information
+                        Update task details and settings
                     </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
@@ -157,6 +191,7 @@ export function EditTaskDialog({ isOpen, onClose, task }: EditTaskDialogProps) {
                             placeholder="Enter task title"
                         />
                     </div>
+
                     <div className="space-y-2">
                         <Label htmlFor="description">Description</Label>
                         <Textarea
@@ -171,6 +206,7 @@ export function EditTaskDialog({ isOpen, onClose, task }: EditTaskDialogProps) {
                             placeholder="Enter task description"
                         />
                     </div>
+
                     <div className="space-y-2">
                         <Label htmlFor="assignee">Assignee</Label>
                         <Input
@@ -185,196 +221,225 @@ export function EditTaskDialog({ isOpen, onClose, task }: EditTaskDialogProps) {
                             placeholder="Enter assignee name"
                         />
                     </div>
-                    <div className="space-y-2">
-                        <Label>Due Date</Label>
-                        <div className="flex items-center gap-2">
-                            <Input
-                                type="date"
-                                value={
-                                    editedTask.dueDate
-                                        ? format(
-                                              editedTask.dueDate,
-                                              'yyyy-MM-dd'
-                                          )
-                                        : ''
-                                }
-                                onChange={(e) =>
-                                    setEditedTask({
-                                        ...editedTask,
-                                        dueDate: new Date(e.target.value),
-                                    })
-                                }
-                            />
-                            <Button
-                                variant="outline"
-                                size="icon"
-                                onClick={() =>
-                                    setEditedTask({
-                                        ...editedTask,
-                                        dueDate: new Date(),
-                                    })
-                                }
-                            >
-                                <CalendarIcon className="h-4 w-4" />
-                            </Button>
-                        </div>
-                    </div>
-                    <div className="space-y-2">
-                        <Label>Priority</Label>
-                        <Select
-                            value={editedTask.priority}
-                            onValueChange={(value: Priority) =>
-                                setEditedTask({
-                                    ...editedTask,
-                                    priority: value,
-                                })
-                            }
-                        >
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select priority" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="low">Low</SelectItem>
-                                <SelectItem value="medium">Medium</SelectItem>
-                                <SelectItem value="high">High</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="space-y-2">
-                        <Label>Status</Label>
-                        <Select
-                            value={editedTask.column}
-                            onValueChange={(value: ColumnType) =>
-                                setEditedTask({
-                                    ...editedTask,
-                                    column: value,
-                                })
-                            }
-                        >
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select status" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="todo">To Do</SelectItem>
-                                <SelectItem value="in-progress">
-                                    In Progress
-                                </SelectItem>
-                                <SelectItem value="done">Done</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
+
                     <div className="space-y-2">
                         <Label>Labels</Label>
-                        <div className="flex flex-wrap gap-2">
-                            {editedTask.labels?.map((label) => (
-                                <div
-                                    key={label}
-                                    className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded"
-                                >
-                                    <span>{label}</span>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-4 w-4"
-                                        onClick={() => removeLabel(label)}
-                                    >
-                                        <X className="h-3 w-3" />
-                                    </Button>
-                                </div>
-                            ))}
-                        </div>
-                        <Input
-                            value={newLabel}
-                            onChange={(e) => setNewLabel(e.target.value)}
-                            onKeyDown={handleLabelKeyDown}
-                            placeholder="Press Enter to add label"
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label>Attachments</Label>
                         <div className="space-y-2">
-                            <FileUploadModal
-                                trigger={
-                                    <Button
-                                        variant="outline"
-                                        className="w-full"
-                                    >
-                                        <Upload className="mr-2 h-4 w-4" />
-                                        Upload New Files
-                                    </Button>
-                                }
-                                onUploadComplete={handleFileUpload}
+                            <Input
+                                value={currentLabel}
+                                onChange={handleLabelsChange}
+                                onKeyDown={handleKeyDown}
+                                placeholder="Type a label and press Enter"
                             />
-                            {attachments.length > 0 && (
-                                <div className="space-y-2">
-                                    {attachments.map((file, index) => (
+                            {(editedTask.labels?.length ?? 0) > 0 && (
+                                <div className="flex flex-wrap gap-2 p-2 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                                    {editedTask.labels?.map((label: string) => (
                                         <div
-                                            key={index}
-                                            className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded-lg"
+                                            key={label}
+                                            className="flex items-center gap-1"
                                         >
-                                            <span className="text-sm">
-                                                {file.name}
+                                            <span className="px-3 py-1 text-sm rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 font-medium">
+                                                {label}
                                             </span>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
+                                            <button
                                                 onClick={() =>
-                                                    handleRemoveAttachment(
-                                                        index
-                                                    )
+                                                    setEditedTask({
+                                                        ...editedTask,
+                                                        labels:
+                                                            editedTask.labels?.filter(
+                                                                (l: string) =>
+                                                                    l !== label
+                                                            ) || [],
+                                                    })
                                                 }
+                                                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                                             >
                                                 <X className="h-4 w-4" />
-                                            </Button>
+                                            </button>
                                         </div>
                                     ))}
                                 </div>
                             )}
                         </div>
                     </div>
+
                     <div className="space-y-2">
-                        <Label>Existing Files</Label>
-                        <div className="space-y-2">
-                            {driveFiles.map((file) => (
-                                <div
-                                    key={file.id}
-                                    className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded-lg"
+                        <Label>Due Date</Label>
+                        <Popover
+                            open={showCalendar}
+                            onOpenChange={setShowCalendar}
+                        >
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    className="w-full justify-start text-left font-normal"
                                 >
-                                    <span className="text-sm">{file.name}</span>
+                                    <Calendar className="mr-2 h-4 w-4" />
+                                    {editedTask.dueDate ? (
+                                        format(editedTask.dueDate, 'PPP', {
+                                            locale: ptBR,
+                                        })
+                                    ) : (
+                                        <span>Select a date</span>
+                                    )}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                                <CalendarPicker
+                                    mode="single"
+                                    selected={editedTask.dueDate}
+                                    onSelect={handleDateChange}
+                                    initialFocus
+                                />
+                            </PopoverContent>
+                        </Popover>
+                        {dateError && (
+                            <p className="text-sm text-red-500">{dateError}</p>
+                        )}
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label>Priority</Label>
+                        <div className="flex gap-2">
+                            {(['Low', 'Medium', 'High'] as const).map(
+                                (priority) => (
                                     <Button
+                                        key={priority}
                                         variant={
-                                            selectedExistingFiles.includes(
-                                                file.id
-                                            )
+                                            editedTask.priority === priority
                                                 ? 'default'
                                                 : 'outline'
                                         }
-                                        size="sm"
-                                        onClick={() => {
-                                            if (
-                                                selectedExistingFiles.includes(
-                                                    file.id
-                                                )
-                                            ) {
-                                                handleRemoveExistingFile(
-                                                    file.id
-                                                )
-                                            } else {
-                                                setSelectedExistingFiles([
-                                                    ...selectedExistingFiles,
-                                                    file.id,
-                                                ])
-                                            }
-                                        }}
+                                        onClick={() =>
+                                            setEditedTask({
+                                                ...editedTask,
+                                                priority,
+                                            })
+                                        }
+                                        className="flex-1"
                                     >
-                                        {selectedExistingFiles.includes(file.id)
-                                            ? 'Selected'
-                                            : 'Select'}
+                                        {priority}
                                     </Button>
-                                </div>
-                            ))}
+                                )
+                            )}
                         </div>
                     </div>
+
+                    <div className="space-y-2">
+                        <Label>Attachments</Label>
+                        <div className="space-y-2">
+                            {selectedExistingFiles.length > 0 && (
+                                <div className="space-y-2">
+                                    {selectedExistingFiles.map((fileId) => {
+                                        const file = driveFiles.find(
+                                            (f) => f.id === fileId
+                                        )
+                                        return (
+                                            <div
+                                                key={fileId}
+                                                className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded-lg"
+                                            >
+                                                <span className="text-sm">
+                                                    {file?.name || fileId}
+                                                </span>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() =>
+                                                        handleRemoveAttachment(
+                                                            fileId
+                                                        )
+                                                    }
+                                                >
+                                                    <X className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            )}
+
+                            <div className="flex gap-2">
+                                <Select
+                                    value=""
+                                    onValueChange={(value) => {
+                                        if (
+                                            value &&
+                                            !selectedExistingFiles.includes(
+                                                value
+                                            )
+                                        ) {
+                                            setSelectedExistingFiles((prev) => [
+                                                ...prev,
+                                                value,
+                                            ])
+                                        }
+                                    }}
+                                >
+                                    <SelectTrigger className="flex-1">
+                                        <SelectValue placeholder="Add existing file" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {driveFiles.length > 0 ? (
+                                            driveFiles
+                                                .filter(
+                                                    (file) =>
+                                                        !selectedExistingFiles.includes(
+                                                            file.id
+                                                        )
+                                                )
+                                                .map((file) => (
+                                                    <SelectItem
+                                                        key={file.id}
+                                                        value={file.id}
+                                                        className="cursor-pointer"
+                                                    >
+                                                        {file.name}
+                                                    </SelectItem>
+                                                ))
+                                        ) : (
+                                            <div className="p-2 text-sm text-muted-foreground">
+                                                No files available from Google
+                                                Drive
+                                            </div>
+                                        )}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="flex gap-2">
+                                <input
+                                    type="file"
+                                    multiple
+                                    onChange={(e) => {
+                                        if (e.target.files) {
+                                            handleFileUpload(
+                                                Array.from(e.target.files)
+                                            )
+                                        }
+                                    }}
+                                    className="hidden"
+                                    id="file-upload"
+                                />
+                                <Button
+                                    variant="outline"
+                                    className="flex-1"
+                                    onClick={() =>
+                                        document
+                                            .getElementById('file-upload')
+                                            ?.click()
+                                    }
+                                    disabled={!isConnected}
+                                >
+                                    <Upload className="mr-2 h-4 w-4" />
+                                    {!isConnected
+                                        ? 'Connect to Google Drive first'
+                                        : 'Upload Files'}
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+
                     <div className="space-y-2">
                         <Label>Linked Notes</Label>
                         <div className="space-y-2">
@@ -440,12 +505,15 @@ export function EditTaskDialog({ isOpen, onClose, task }: EditTaskDialogProps) {
                             )}
                         </div>
                     </div>
-                </div>
-                <div className="flex justify-end gap-2">
-                    <Button variant="outline" onClick={onClose}>
-                        Cancel
-                    </Button>
-                    <Button onClick={handleSave}>Save Changes</Button>
+
+                    <div className="flex justify-end gap-2">
+                        <Button variant="outline" onClick={onClose}>
+                            Cancel
+                        </Button>
+                        <Button onClick={handleSaveChanges}>
+                            Save Changes
+                        </Button>
+                    </div>
                 </div>
             </DialogContent>
         </Dialog>

@@ -1,4 +1,3 @@
-import { FileUploadModal } from '@/components/files/FileUploadModal'
 import { Button } from '@/components/ui/button'
 import { Calendar as CalendarPicker } from '@/components/ui/calendar'
 import {
@@ -30,7 +29,7 @@ import { useNotesStore } from '@/store/notes'
 import type { ColumnType, Priority } from '@/types'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Calendar, Upload, X } from 'lucide-react'
+import { Calendar, ExternalLink, Upload, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 interface DriveFile {
@@ -63,7 +62,7 @@ export function AddTaskForm({ onClose }: AddTaskFormProps) {
     const [dateError, setDateError] = useState('')
     const [showCalendar, setShowCalendar] = useState(false)
     const [currentLabel, setCurrentLabel] = useState('')
-    const [attachments, setAttachments] = useState<File[]>([])
+    const [attachments, setAttachments] = useState<(File | string)[]>([])
     const [selectedExistingFiles, setSelectedExistingFiles] = useState<
         string[]
     >([])
@@ -84,8 +83,12 @@ export function AddTaskForm({ onClose }: AddTaskFormProps) {
         }
     }
 
-    const handleFileUpload = (files: File[]) => {
-        setAttachments([...attachments, ...files])
+    const handleFileUpload = (files?: File[]) => {
+        if (files) {
+            setAttachments([...attachments, ...files])
+        } else {
+            loadDriveFiles()
+        }
     }
 
     const handleRemoveAttachment = (index: number) => {
@@ -116,7 +119,11 @@ export function AddTaskForm({ onClose }: AddTaskFormProps) {
                 priority.slice(1).toLowerCase()) as Priority,
             attachments: [
                 ...newTask.attachments,
-                ...attachments.map((file) => file.name),
+                ...attachments.map((attachment) =>
+                    typeof attachment === 'string'
+                        ? attachment
+                        : attachment.name
+                ),
                 ...selectedFiles,
             ],
             notes: selectedNotes,
@@ -310,27 +317,17 @@ export function AddTaskForm({ onClose }: AddTaskFormProps) {
                     <div className="space-y-2">
                         <Label>Attachments</Label>
                         <div className="space-y-2">
-                            <FileUploadModal
-                                trigger={
-                                    <Button
-                                        variant="outline"
-                                        className="w-full"
-                                    >
-                                        <Upload className="mr-2 h-4 w-4" />
-                                        Upload New Files
-                                    </Button>
-                                }
-                                onUploadComplete={handleFileUpload}
-                            />
                             {attachments.length > 0 && (
                                 <div className="space-y-2">
-                                    {attachments.map((file, index) => (
+                                    {attachments.map((attachment, index) => (
                                         <div
                                             key={index}
                                             className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded-lg"
                                         >
                                             <span className="text-sm">
-                                                {file.name}
+                                                {typeof attachment === 'string'
+                                                    ? attachment
+                                                    : attachment.name}
                                             </span>
                                             <Button
                                                 variant="ghost"
@@ -353,44 +350,154 @@ export function AddTaskForm({ onClose }: AddTaskFormProps) {
                     <div className="space-y-2">
                         <Label>Existing Files</Label>
                         <div className="space-y-2">
-                            {driveFiles.map((file) => (
-                                <div
-                                    key={file.id}
-                                    className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded-lg"
-                                >
-                                    <span className="text-sm">{file.name}</span>
-                                    <Button
-                                        variant={
-                                            selectedExistingFiles.includes(
-                                                file.id
-                                            )
-                                                ? 'default'
-                                                : 'outline'
-                                        }
-                                        size="sm"
-                                        onClick={() => {
-                                            if (
-                                                selectedExistingFiles.includes(
-                                                    file.id
-                                                )
-                                            ) {
-                                                handleRemoveExistingFile(
-                                                    file.id
-                                                )
-                                            } else {
-                                                setSelectedExistingFiles([
-                                                    ...selectedExistingFiles,
-                                                    file.id,
-                                                ])
-                                            }
-                                        }}
-                                    >
-                                        {selectedExistingFiles.includes(file.id)
-                                            ? 'Selected'
-                                            : 'Select'}
-                                    </Button>
+                            {selectedExistingFiles.length > 0 && (
+                                <div className="space-y-2">
+                                    {selectedExistingFiles.map((fileId) => {
+                                        const file = driveFiles.find(
+                                            (f) => f.id === fileId
+                                        )
+                                        if (!file) return null
+                                        return (
+                                            <div
+                                                key={fileId}
+                                                className="flex items-center justify-between p-2 bg-muted/50 rounded"
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <img
+                                                        src={`https://drive-thirdparty.googleusercontent.com/16/type/${file.mimeType}`}
+                                                        alt=""
+                                                        className="h-5 w-5 object-contain"
+                                                        onError={(e) => {
+                                                            e.currentTarget.src =
+                                                                'https://drive-thirdparty.googleusercontent.com/16/type/application/octet-stream'
+                                                        }}
+                                                    />
+                                                    <span className="text-sm">
+                                                        {file.name}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() =>
+                                                            window.open(
+                                                                `https://drive.google.com/file/d/${file.id}/view`,
+                                                                '_blank'
+                                                            )
+                                                        }
+                                                    >
+                                                        <ExternalLink className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() =>
+                                                            handleRemoveExistingFile(
+                                                                fileId
+                                                            )
+                                                        }
+                                                    >
+                                                        <X className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
                                 </div>
-                            ))}
+                            )}
+
+                            <div className="flex gap-2">
+                                <Select
+                                    onValueChange={(value) => {
+                                        if (
+                                            !selectedExistingFiles.includes(
+                                                value
+                                            )
+                                        ) {
+                                            setSelectedExistingFiles([
+                                                ...selectedExistingFiles,
+                                                value,
+                                            ])
+                                        }
+                                    }}
+                                >
+                                    <SelectTrigger className="flex-1">
+                                        <SelectValue placeholder="Add existing file" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {driveFiles.length > 0 ? (
+                                            driveFiles
+                                                .filter(
+                                                    (file) =>
+                                                        !selectedExistingFiles.includes(
+                                                            file.id
+                                                        )
+                                                )
+                                                .map((file) => (
+                                                    <SelectItem
+                                                        key={file.id}
+                                                        value={file.id}
+                                                        className="cursor-pointer"
+                                                    >
+                                                        <div className="flex items-center gap-2">
+                                                            <img
+                                                                src={`https://drive-thirdparty.googleusercontent.com/16/type/${file.mimeType}`}
+                                                                alt=""
+                                                                className="h-5 w-5 object-contain"
+                                                                onError={(
+                                                                    e
+                                                                ) => {
+                                                                    e.currentTarget.src =
+                                                                        'https://drive-thirdparty.googleusercontent.com/16/type/application/octet-stream'
+                                                                }}
+                                                            />
+                                                            <span className="font-medium">
+                                                                {file.name}
+                                                            </span>
+                                                        </div>
+                                                    </SelectItem>
+                                                ))
+                                        ) : (
+                                            <div className="p-2 text-sm text-muted-foreground">
+                                                No files available from Google
+                                                Drive
+                                            </div>
+                                        )}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="flex gap-2">
+                                <input
+                                    type="file"
+                                    multiple
+                                    onChange={(e) => {
+                                        if (e.target.files) {
+                                            handleFileUpload(
+                                                Array.from(e.target.files)
+                                            )
+                                        }
+                                    }}
+                                    className="hidden"
+                                    id="file-upload"
+                                />
+                                <Button
+                                    variant="outline"
+                                    className="flex-1"
+                                    onClick={() =>
+                                        document
+                                            .getElementById('file-upload')
+                                            ?.click()
+                                    }
+                                    disabled={!isConnected}
+                                >
+                                    <Upload className="mr-2 h-4 w-4" />
+                                    {!isConnected
+                                        ? 'Connect to Google Drive first'
+                                        : 'Upload Files'}
+                                </Button>
+                            </div>
                         </div>
                     </div>
 

@@ -17,11 +17,9 @@ import {
     Droppable,
     DroppableProvided,
 } from '@hello-pangea/dnd'
-import { Plus } from 'lucide-react'
+import { Plus, RefreshCw } from 'lucide-react'
 import { useState } from 'react'
-import { AddTaskForm } from './AddTaskForm'
-import { KanbanCard } from './KanbanCard'
-import { KanbanFilters } from './KanbanFilters'
+import { AddTaskForm, KanbanCard, KanbanFilters } from '.'
 
 const columns = [
     {
@@ -53,7 +51,8 @@ interface Filters {
 }
 
 export function KanbanBoard() {
-    const { tasks, moveTask } = useKanbanStore()
+    const { tasks, moveTask, syncWithDrive, syncFromDrive, isLoading } =
+        useKanbanStore()
     const [isAddTaskOpen, setIsAddTaskOpen] = useState(false)
     const [filters, setFilters] = useState<Filters>({
         search: '',
@@ -65,6 +64,17 @@ export function KanbanBoard() {
 
     const handleFilterChange = (newFilters: Filters) => {
         setFilters(newFilters)
+    }
+
+    const handleSync = async () => {
+        try {
+            // First sync local changes to Drive
+            await syncWithDrive()
+            // Then sync from Drive to local
+            await syncFromDrive()
+        } catch (error) {
+            console.error('Error during sync:', error)
+        }
     }
 
     const filterTasks = (tasks: Task[]) => {
@@ -126,6 +136,16 @@ export function KanbanBoard() {
             <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold">Kanban Board</h2>
                 <div className="flex gap-2">
+                    <Button
+                        variant="outline"
+                        onClick={handleSync}
+                        disabled={isLoading}
+                    >
+                        <RefreshCw
+                            className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`}
+                        />
+                        Sync
+                    </Button>
                     <KanbanFilters
                         tasks={tasks}
                         onFilterChange={handleFilterChange}
@@ -163,7 +183,10 @@ export function KanbanBoard() {
                         )
 
                         return (
-                            <div key={column.id} className="space-y-4">
+                            <div
+                                key={`column-${column.id}`}
+                                className="space-y-4"
+                            >
                                 <div
                                     className={`flex items-center justify-between p-3 rounded-lg border-l-4 ${column.color} ${column.accent} border-l-4`}
                                 >
@@ -183,7 +206,7 @@ export function KanbanBoard() {
                                         >
                                             {columnTasks.map((task, index) => (
                                                 <Draggable
-                                                    key={task.id}
+                                                    key={`task-${task.id}`}
                                                     draggableId={task.id}
                                                     index={index}
                                                 >
