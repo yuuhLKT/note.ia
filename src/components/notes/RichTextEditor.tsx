@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button'
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
@@ -436,49 +437,41 @@ export function RichTextEditor({
             <Dialog open={linkDialogOpen} onOpenChange={setLinkDialogOpen}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>
-                            {editor.isActive('link') ? 'Edit Link' : 'Add Link'}
-                        </DialogTitle>
+                        <DialogTitle>Add Link</DialogTitle>
+                        <DialogDescription>
+                            Insert a link to add to your content
+                        </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-4 py-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="url">URL</Label>
-                            <Input
-                                id="url"
-                                value={linkUrl}
-                                onChange={(e) => setLinkUrl(e.target.value)}
-                                placeholder="https://example.com"
-                            />
-                        </div>
+                    <div className="space-y-4">
                         <div className="space-y-2">
                             <Label htmlFor="text">Text</Label>
                             <Input
                                 id="text"
                                 value={linkText}
                                 onChange={(e) => setLinkText(e.target.value)}
-                                placeholder="Link text"
+                                placeholder="Enter link text"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="url">URL</Label>
+                            <Input
+                                id="url"
+                                value={linkUrl}
+                                onChange={(e) => setLinkUrl(e.target.value)}
+                                placeholder="Enter URL"
                             />
                         </div>
                     </div>
-                    <DialogFooter className="flex gap-2">
+                    <DialogFooter>
                         {editor.isActive('link') && (
-                            <Button
-                                variant="destructive"
-                                onClick={handleUnlink}
-                                className="flex items-center gap-2"
-                            >
-                                <Unlink className="h-4 w-4" />
+                            <Button variant="outline" onClick={handleUnlink}>
+                                <Unlink className="h-4 w-4 mr-2" />
                                 Remove Link
                             </Button>
                         )}
-                        <Button
-                            onClick={handleLinkSubmit}
-                            className="flex items-center gap-2"
-                        >
-                            <ExternalLink className="h-4 w-4" />
-                            {editor.isActive('link')
-                                ? 'Update Link'
-                                : 'Add Link'}
+                        <Button onClick={handleLinkSubmit}>
+                            <ExternalLink className="h-4 w-4 mr-2" />
+                            Add Link
                         </Button>
                     </DialogFooter>
                 </DialogContent>

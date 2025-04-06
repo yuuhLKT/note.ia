@@ -35,60 +35,56 @@ export function NotesList() {
     const { notes, deleteNote } = useNotesStore()
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
-    const [selectedNote, setSelectedNote] = useState<Note | null>(null)
+    const [selectedNote] = useState<Note | null>(null)
     const [newNote, setNewNote] = useState({
         title: '',
         content: '',
     })
 
-    const handleDeleteNote = (id: string) => {
-        deleteNote(id)
+    const handleNewNote = () => {
+        navigate('/notes/editor')
     }
 
     return (
-        <div className="container mx-auto p-4">
-            <div className="flex justify-between items-center mb-6">
-                <h1 className="text-2xl font-bold">My Notes</h1>
-                <Button onClick={() => navigate('/notes/new')}>
+        <div className="space-y-4">
+            <div className="flex justify-end">
+                <Button onClick={handleNewNote}>
                     <Plus className="mr-2 h-4 w-4" />
                     New Note
                 </Button>
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {notes.map((note) => (
                     <div
                         key={note.id}
-                        className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 hover:shadow-lg transition-shadow cursor-pointer"
-                        onClick={() => {
-                            setSelectedNote(note)
-                            navigate(`/notes/${note.id}`)
-                        }}
+                        className="bg-card rounded-lg border p-4 hover:border-primary transition-colors cursor-pointer"
+                        onClick={() => navigate(`/notes/editor/${note.id}`)}
                     >
                         <div className="flex justify-between items-start mb-2">
-                            <h2 className="text-lg font-semibold">
-                                {note.title}
-                            </h2>
+                            <h3 className="font-semibold text-lg">
+                                {note.title || 'Untitled Note'}
+                            </h3>
                             <Button
                                 variant="ghost"
                                 size="icon"
+                                className="h-8 w-8"
                                 onClick={(e) => {
                                     e.stopPropagation()
-                                    handleDeleteNote(note.id)
+                                    deleteNote(note.id)
                                 }}
                             >
                                 <Trash2 className="h-4 w-4" />
                             </Button>
                         </div>
-                        <p className="text-gray-600 dark:text-gray-300 mb-2 line-clamp-3">
+                        <p className="text-sm text-muted-foreground mb-3 line-clamp-3">
                             {stripHtml(note.content)}
                         </p>
-                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                        <div className="text-xs text-muted-foreground">
                             <p>
-                                Created at:{' '}
+                                Created:{' '}
                                 {format(
                                     note.createdAt,
-                                    "MM/dd/yyyy 'at' HH:mm",
+                                    "MMM d, yyyy 'at' h:mm a",
                                     {
                                         locale: ptBR,
                                     }
@@ -96,10 +92,10 @@ export function NotesList() {
                             </p>
                             {note.updatedAt > note.createdAt && (
                                 <p>
-                                    Updated at:{' '}
+                                    Updated:{' '}
                                     {format(
                                         note.updatedAt,
-                                        "MM/dd/yyyy 'at' HH:mm",
+                                        "MMM d, yyyy 'at' h:mm a",
                                         {
                                             locale: ptBR,
                                         }
