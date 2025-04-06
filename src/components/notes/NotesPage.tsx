@@ -1,5 +1,6 @@
 import { FileText, Upload } from 'lucide-react'
-import { DriveUpload } from '../files/DriveUpload'
+import { FileUploadModal } from '../files/FileUploadModal'
+import { Button } from '../ui/button'
 import { NotesList } from './NotesList'
 
 export function NotesPage() {
@@ -28,7 +29,15 @@ export function NotesPage() {
                     </h2>
                 </div>
                 <div className="rounded-lg border bg-card p-6 shadow-sm">
-                    <DriveUpload onUploadComplete={() => {}} />
+                    <FileUploadModal
+                        trigger={
+                            <Button className="w-full">
+                                <Upload className="mr-2 h-4 w-4" />
+                                Upload Files
+                            </Button>
+                        }
+                        onUploadComplete={() => {}}
+                    />
                 </div>
             </section>
         </div>
