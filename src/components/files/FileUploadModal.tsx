@@ -1,5 +1,4 @@
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
 import {
     Dialog,
     DialogContent,
@@ -8,184 +7,127 @@ import {
     DialogTitle,
     DialogTrigger,
 } from '@/components/ui/dialog'
-import { Upload, X } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { useGoogleDrive } from '@/hooks/use-google-drive'
+import { useGoogleDriveConnection } from '@/hooks/use-google-drive-connection'
+import { uploadFile } from '@/services/googleDrive'
+import { Upload } from 'lucide-react'
+import { ReactNode, useState } from 'react'
+import { useDropzone } from 'react-dropzone'
 
 interface FileUploadModalProps {
-    trigger?: React.ReactNode
-    onUploadComplete?: (files: File[]) => void
-    accept?: string
-    maxSize?: number // in bytes
+    trigger: ReactNode
+    onUploadComplete: () => void
 }
 
 export function FileUploadModal({
     trigger,
     onUploadComplete,
-    accept = '*',
-    maxSize = 10 * 1024 * 1024, // 10MB default
 }: FileUploadModalProps) {
     const [isOpen, setIsOpen] = useState(false)
-    const [files, setFiles] = useState<File[]>([])
-    const [error, setError] = useState<string>('')
-    const [isDragging, setIsDragging] = useState(false)
-    const fileInputRef = useRef<HTMLInputElement>(null)
+    const [isUploading, setIsUploading] = useState(false)
+    const [uploadError, setUploadError] = useState<string | null>(null)
+    const { isConnected } = useGoogleDrive()
+    const { login } = useGoogleDriveConnection()
 
-    const handleDragOver = (e: React.DragEvent) => {
-        e.preventDefault()
-        setIsDragging(true)
-    }
+    const { getRootProps, getInputProps, isDragActive } = useDropzone({
+        onDrop: handleFileDrop,
+        disabled: !isConnected || isUploading,
+    })
 
-    const handleDragLeave = (e: React.DragEvent) => {
-        e.preventDefault()
-        setIsDragging(false)
-    }
-
-    const handleDrop = (e: React.DragEvent) => {
-        e.preventDefault()
-        setIsDragging(false)
-        setError('')
-        const droppedFiles = Array.from(e.dataTransfer.files)
-        validateAndSetFiles(droppedFiles)
-    }
-
-    const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setError('')
-        const selectedFiles = Array.from(e.target.files || [])
-        validateAndSetFiles(selectedFiles)
-    }
-
-    const validateAndSetFiles = (newFiles: File[]) => {
-        const validFiles = newFiles.filter((file) => {
-            if (file.size > maxSize) {
-                setError(
-                    `File ${file.name} exceeds the maximum size limit of ${maxSize / (1024 * 1024)}MB`
-                )
-                return false
-            }
-            return true
-        })
-        setFiles((prev) => [...prev, ...validFiles])
-    }
-
-    const handleUpload = () => {
-        if (files.length === 0) {
-            setError('Please select at least one file to upload')
+    async function handleFileDrop(acceptedFiles: File[]) {
+        if (!isConnected) {
+            setUploadError('Please connect to Google Drive first')
             return
         }
-        onUploadComplete?.(files)
-        setFiles([])
-        setIsOpen(false)
-    }
 
-    const removeFile = (index: number) => {
-        setFiles((prev) => prev.filter((_, i) => i !== index))
-    }
+        setIsUploading(true)
+        setUploadError(null)
 
-    const handleDragAreaClick = () => {
-        fileInputRef.current?.click()
+        try {
+            for (const file of acceptedFiles) {
+                await uploadFile(file)
+            }
+            onUploadComplete()
+            setIsOpen(false)
+        } catch (error) {
+            console.error('Error uploading file:', error)
+            setUploadError(
+                error instanceof Error
+                    ? error.message
+                    : 'An error occurred while uploading the file'
+            )
+        } finally {
+            setIsUploading(false)
+        }
     }
 
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
-            <DialogTrigger asChild>
-                {trigger || (
-                    <Button>
-                        <Upload className="mr-2 h-4 w-4" />
-                        Upload Files
-                    </Button>
-                )}
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogTrigger asChild>{trigger}</DialogTrigger>
+            <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Upload Files</DialogTitle>
                     <DialogDescription>
-                        Select files to upload or drag and drop them here
+                        {isConnected
+                            ? 'Drag and drop files here or click to select files'
+                            : 'Connect to your Google Drive account to upload files'}
                     </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4">
-                    <Card
-                        className={`border-2 border-dashed p-8 text-center transition-colors cursor-pointer ${
-                            isDragging
-                                ? 'border-primary bg-primary/5'
-                                : 'hover:border-primary/50'
-                        }`}
-                        onDragOver={handleDragOver}
-                        onDragLeave={handleDragLeave}
-                        onDrop={handleDrop}
-                        onClick={handleDragAreaClick}
+
+                {!isConnected ? (
+                    <Button onClick={() => login()} className="w-full">
+                        Connect to Google Drive
+                    </Button>
+                ) : (
+                    <div
+                        {...getRootProps()}
+                        className={`
+                            flex flex-col items-center justify-center rounded-lg
+                            border-2 border-dashed p-8 transition-colors
+                            ${
+                                isDragActive
+                                    ? 'border-primary bg-primary/10'
+                                    : 'border-muted-foreground/25'
+                            }
+                            ${isUploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+                        `}
                     >
-                        <div className="flex flex-col items-center gap-2">
-                            <div className="relative">
-                                <Upload className="h-8 w-8 text-muted-foreground" />
-                                {isDragging && (
-                                    <div className="absolute inset-0 flex items-center justify-center">
-                                        <div className="animate-ping h-8 w-8 rounded-full bg-primary/20" />
-                                    </div>
-                                )}
-                            </div>
-                            <p className="text-sm text-muted-foreground">
-                                {isDragging
-                                    ? 'Drop your files here'
-                                    : 'Drag and drop your files here or click to browse'}
-                            </p>
-                            <input
-                                ref={fileInputRef}
-                                type="file"
-                                multiple
-                                accept={accept}
-                                onChange={handleFileInput}
-                                className="hidden"
-                                id="file-upload"
-                            />
-                            <label
-                                htmlFor="file-upload"
-                                className="text-sm text-primary cursor-pointer hover:underline"
-                            >
-                                Browse files
-                            </label>
+                        <input {...getInputProps()} />
+                        <Upload className="h-8 w-8 text-muted-foreground mb-4" />
+                        <div className="text-center space-y-2">
+                            {isUploading ? (
+                                <p>Uploading...</p>
+                            ) : (
+                                <>
+                                    <p>
+                                        <span className="font-medium">
+                                            Click to upload
+                                        </span>{' '}
+                                        or drag and drop
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                        Any file type supported by Google Drive
+                                    </p>
+                                </>
+                            )}
                         </div>
-                    </Card>
-
-                    {error && (
-                        <p className="text-sm text-destructive">{error}</p>
-                    )}
-
-                    {files.length > 0 && (
-                        <div className="space-y-2">
-                            <h4 className="text-sm font-medium">
-                                Selected files:
-                            </h4>
-                            <div className="space-y-2">
-                                {files.map((file, index) => (
-                                    <div
-                                        key={index}
-                                        className="flex items-center justify-between p-2 bg-muted rounded-md"
-                                    >
-                                        <span className="text-sm">
-                                            {file.name}
-                                        </span>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() => removeFile(index)}
-                                        >
-                                            <X className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    <div className="flex justify-end gap-2">
-                        <Button
-                            variant="outline"
-                            onClick={() => setIsOpen(false)}
-                        >
-                            Cancel
-                        </Button>
-                        <Button onClick={handleUpload}>Upload</Button>
                     </div>
+                )}
+
+                {uploadError && (
+                    <p className="text-sm text-destructive text-center mt-2">
+                        {uploadError}
+                    </p>
+                )}
+
+                <div className="flex justify-end gap-4 mt-4">
+                    <Button
+                        variant="outline"
+                        onClick={() => setIsOpen(false)}
+                        disabled={isUploading}
+                    >
+                        Cancel
+                    </Button>
                 </div>
             </DialogContent>
         </Dialog>
