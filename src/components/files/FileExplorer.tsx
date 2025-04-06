@@ -9,7 +9,8 @@ import {
     TableRow,
 } from '@/components/ui/table'
 import { formatDistanceToNow } from 'date-fns'
-import { File, FileImage, FileText, Folder, Search } from 'lucide-react'
+import { File, FileImage, FileText, Folder, Search, Upload } from 'lucide-react'
+import { FileUploadModal } from './FileUploadModal'
 
 const mockFiles = [
     {
@@ -57,6 +58,11 @@ function formatFileSize(bytes: number) {
 }
 
 export function FileExplorer() {
+    const handleUploadComplete = (files: File[]) => {
+        // TODO: Implement file upload logic
+        console.log('Files to upload:', files)
+    }
+
     return (
         <div className="space-y-4">
             <div className="flex items-center gap-4">
@@ -64,7 +70,15 @@ export function FileExplorer() {
                     <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input placeholder="Search files..." className="pl-8" />
                 </div>
-                <Button>Upload</Button>
+                <FileUploadModal
+                    trigger={
+                        <Button>
+                            <Upload className="mr-2 h-4 w-4" />
+                            Upload Files
+                        </Button>
+                    }
+                    onUploadComplete={handleUploadComplete}
+                />
             </div>
             <div className="rounded-md border">
                 <Table>

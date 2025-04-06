@@ -4,6 +4,7 @@ import { KanbanBoard } from '@/components/kanban/KanbanBoard'
 import { Header } from '@/components/layout/Header'
 import { NotesList } from '@/components/notes/NotesList'
 import { NotesPage } from '@/components/notes/NotesPage'
+import { FileText, Upload } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 
@@ -38,7 +39,10 @@ function App() {
                                             <section className="space-y-6">
                                                 <div className="flex items-center justify-between">
                                                     <h2 className="text-2xl font-semibold tracking-tight">
-                                                        Notes
+                                                        <div className="flex items-center gap-2">
+                                                            <FileText className="h-6 w-6" />
+                                                            Notes
+                                                        </div>
                                                     </h2>
                                                 </div>
                                                 <div className="rounded-lg border bg-card p-6 shadow-sm">
@@ -48,7 +52,10 @@ function App() {
                                             <section className="space-y-6">
                                                 <div className="flex items-center justify-between">
                                                     <h2 className="text-2xl font-semibold tracking-tight">
-                                                        Upload Files
+                                                        <div className="flex items-center gap-2">
+                                                            <Upload className="h-6 w-6" />
+                                                            Upload Files
+                                                        </div>
                                                     </h2>
                                                 </div>
                                                 <div className="rounded-lg border bg-card p-6 shadow-sm">

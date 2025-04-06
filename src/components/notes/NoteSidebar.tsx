@@ -13,8 +13,9 @@ import { useKanbanStore } from '@/store/kanban'
 import { useNotesStore } from '@/store/notes'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Calendar, FileText, Plus, Trash2, X } from 'lucide-react'
+import { Calendar, FileText, Plus, Trash2, Upload, X } from 'lucide-react'
 import { useState } from 'react'
+import { FileUploadModal } from '../files/FileUploadModal'
 import { TaskDetailsDialog } from './TaskDetailsDialog'
 
 interface NoteSidebarProps {
@@ -48,18 +49,16 @@ export function NoteSidebar({ noteId, onClose }: NoteSidebarProps) {
         updateNote(noteId, { links })
     }
 
-    const handleAddFile = (file: File) => {
-        const files = [
-            ...(note.files || []),
-            {
-                id: Math.random().toString(36).substr(2, 9),
-                name: file.name,
-                type: file.type,
-                size: file.size,
-                url: URL.createObjectURL(file),
-            },
-        ]
-        updateNote(noteId, { files })
+    const handleAddFiles = (files: File[]) => {
+        const newFiles = files.map((file) => ({
+            id: Math.random().toString(36).substr(2, 9),
+            name: file.name,
+            type: file.type,
+            size: file.size,
+            url: URL.createObjectURL(file),
+        }))
+        const updatedFiles = [...(note.files || []), ...newFiles]
+        updateNote(noteId, { files: updatedFiles })
     }
 
     const handleRemoveFile = (fileId: string) => {
@@ -214,15 +213,17 @@ export function NoteSidebar({ noteId, onClose }: NoteSidebarProps) {
                             ))}
 
                             <div className="flex gap-2">
-                                <Input
-                                    type="file"
-                                    onChange={(e) => {
-                                        const file = e.target.files?.[0]
-                                        if (file) {
-                                            handleAddFile(file)
-                                        }
-                                    }}
-                                    className="flex-1"
+                                <FileUploadModal
+                                    trigger={
+                                        <Button
+                                            variant="outline"
+                                            className="flex-1"
+                                        >
+                                            <Upload className="mr-2 h-4 w-4" />
+                                            Upload Files
+                                        </Button>
+                                    }
+                                    onUploadComplete={handleAddFiles}
                                 />
                             </div>
 
