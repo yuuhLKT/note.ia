@@ -1,8 +1,14 @@
+import { GoogleDriveFile } from '@/services/googleDrive'
+
 // Note types
 export interface Note {
     id: string
+    title: string
     content: string
-    lastEdited: Date
+    createdAt: string
+    updatedAt: string
+    files: GoogleDriveFile[]
+    links?: string[]
 }
 
 // Kanban types
@@ -26,11 +32,9 @@ export interface Task {
 export interface DriveFile {
     id: string
     name: string
-    type: string
-    thumbnailUrl?: string
-    lastModified: Date
-    size: number
-    url?: string
+    mimeType: string
+    modifiedTime: string
+    size?: string
 }
 
 // Theme type
