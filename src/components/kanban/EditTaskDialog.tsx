@@ -17,27 +17,21 @@ import {
     SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { useGoogleDrive } from '@/hooks/use-google-drive'
+import { listFiles } from '@/services/googleDrive'
 import { useKanbanStore } from '@/store/kanban'
 import { useNotesStore } from '@/store/notes'
 import { ColumnType, Priority } from '@/types'
 import { format } from 'date-fns'
 import { CalendarIcon, Upload, X } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
-// Mock files
-const mockFiles = [
-    { id: '1', name: 'Documento.pdf', type: 'pdf', size: '2.5 MB' },
-    { id: '2', name: 'Apresentação.pptx', type: 'ppt', size: '5.1 MB' },
-    { id: '3', name: 'Planilha.xlsx', type: 'xls', size: '1.8 MB' },
-    { id: '4', name: 'Imagem.png', type: 'img', size: '3.2 MB' },
-    { id: '5', name: 'Contrato.docx', type: 'doc', size: '1.5 MB' },
-] as const
-
-interface MockFile {
+interface DriveFile {
     id: string
     name: string
-    type: string
-    size: string
+    mimeType: string
+    modifiedTime: string
+    size?: string
 }
 
 interface EditTaskDialogProps {
@@ -60,6 +54,8 @@ interface EditTaskDialogProps {
 export function EditTaskDialog({ isOpen, onClose, task }: EditTaskDialogProps) {
     const { updateTask } = useKanbanStore()
     const { notes } = useNotesStore()
+    const { isConnected } = useGoogleDrive()
+    const [driveFiles, setDriveFiles] = useState<DriveFile[]>([])
     const [editedTask, setEditedTask] = useState({
         ...task,
         dueDate: task.dueDate || new Date(),
@@ -72,6 +68,21 @@ export function EditTaskDialog({ isOpen, onClose, task }: EditTaskDialogProps) {
     const [selectedNotes, setSelectedNotes] = useState<string[]>(
         task.notes || []
     )
+
+    useEffect(() => {
+        if (isConnected) {
+            loadDriveFiles()
+        }
+    }, [isConnected])
+
+    const loadDriveFiles = async () => {
+        try {
+            const files = await listFiles()
+            setDriveFiles(files)
+        } catch (error) {
+            console.error('Error loading drive files:', error)
+        }
+    }
 
     const handleSave = () => {
         updateTask(task.id, {
@@ -112,9 +123,9 @@ export function EditTaskDialog({ isOpen, onClose, task }: EditTaskDialogProps) {
         setAttachments(attachments.filter((_, i) => i !== index))
     }
 
-    const handleRemoveExistingFile = (fileName: string) => {
+    const handleRemoveExistingFile = (fileId: string) => {
         setSelectedExistingFiles(
-            selectedExistingFiles.filter((file) => file !== fileName)
+            selectedExistingFiles.filter((id) => id !== fileId)
         )
     }
 
@@ -281,122 +292,87 @@ export function EditTaskDialog({ isOpen, onClose, task }: EditTaskDialogProps) {
                     </div>
                     <div className="space-y-2">
                         <Label>Attachments</Label>
-                        <div className="space-y-4">
-                            <div className="space-y-2">
-                                <Label className="text-sm font-medium">
-                                    Existing Files
-                                </Label>
-                                <Select
-                                    value=""
-                                    onValueChange={(value) => {
-                                        if (
-                                            value &&
-                                            !selectedExistingFiles.includes(
-                                                value
-                                            )
-                                        ) {
-                                            setSelectedExistingFiles([
-                                                ...selectedExistingFiles,
-                                                value,
-                                            ])
-                                        }
-                                    }}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select files to add" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {mockFiles
-                                            .filter(
-                                                (file: MockFile) =>
-                                                    !selectedExistingFiles.includes(
-                                                        file.name
-                                                    )
-                                            )
-                                            .map((file: MockFile) => (
-                                                <SelectItem
-                                                    key={file.id}
-                                                    value={file.name}
-                                                >
-                                                    {file.name} ({file.size})
-                                                </SelectItem>
-                                            ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label className="text-sm font-medium">
-                                    Upload New Files
-                                </Label>
-                                <FileUploadModal
-                                    trigger={
-                                        <Button
-                                            variant="outline"
-                                            className="w-full"
-                                        >
-                                            <Upload className="mr-2 h-4 w-4" />
-                                            Upload Files
-                                        </Button>
-                                    }
-                                    onUploadComplete={handleFileUpload}
-                                />
-                            </div>
-
-                            {(selectedExistingFiles.length > 0 ||
-                                attachments.length > 0) && (
+                        <div className="space-y-2">
+                            <FileUploadModal
+                                trigger={
+                                    <Button
+                                        variant="outline"
+                                        className="w-full"
+                                    >
+                                        <Upload className="mr-2 h-4 w-4" />
+                                        Upload New Files
+                                    </Button>
+                                }
+                                onUploadComplete={handleFileUpload}
+                            />
+                            {attachments.length > 0 && (
                                 <div className="space-y-2">
-                                    <h4 className="text-sm font-medium">
-                                        Selected files:
-                                    </h4>
-                                    <div className="space-y-2">
-                                        {selectedExistingFiles.map(
-                                            (fileName) => (
-                                                <div
-                                                    key={`existing-${fileName}`}
-                                                    className="flex items-center justify-between p-2 bg-muted rounded-md"
-                                                >
-                                                    <span className="text-sm">
-                                                        {fileName}
-                                                    </span>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        onClick={() =>
-                                                            handleRemoveExistingFile(
-                                                                fileName
-                                                            )
-                                                        }
-                                                    >
-                                                        <X className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
-                                            )
-                                        )}
-                                        {attachments.map((file, index) => (
-                                            <div
-                                                key={`new-${index}`}
-                                                className="flex items-center justify-between p-2 bg-muted rounded-md"
+                                    {attachments.map((file, index) => (
+                                        <div
+                                            key={index}
+                                            className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded-lg"
+                                        >
+                                            <span className="text-sm">
+                                                {file.name}
+                                            </span>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() =>
+                                                    handleRemoveAttachment(
+                                                        index
+                                                    )
+                                                }
                                             >
-                                                <span className="text-sm">
-                                                    {file.name}
-                                                </span>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() =>
-                                                        handleRemoveAttachment(
-                                                            index
-                                                        )
-                                                    }
-                                                >
-                                                    <X className="h-4 w-4" />
-                                                </Button>
-                                            </div>
-                                        ))}
-                                    </div>
+                                                <X className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    ))}
                                 </div>
                             )}
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Existing Files</Label>
+                        <div className="space-y-2">
+                            {driveFiles.map((file) => (
+                                <div
+                                    key={file.id}
+                                    className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded-lg"
+                                >
+                                    <span className="text-sm">{file.name}</span>
+                                    <Button
+                                        variant={
+                                            selectedExistingFiles.includes(
+                                                file.id
+                                            )
+                                                ? 'default'
+                                                : 'outline'
+                                        }
+                                        size="sm"
+                                        onClick={() => {
+                                            if (
+                                                selectedExistingFiles.includes(
+                                                    file.id
+                                                )
+                                            ) {
+                                                handleRemoveExistingFile(
+                                                    file.id
+                                                )
+                                            } else {
+                                                setSelectedExistingFiles([
+                                                    ...selectedExistingFiles,
+                                                    file.id,
+                                                ])
+                                            }
+                                        }}
+                                    >
+                                        {selectedExistingFiles.includes(file.id)
+                                            ? 'Selected'
+                                            : 'Select'}
+                                    </Button>
+                                </div>
+                            ))}
                         </div>
                     </div>
                     <div className="space-y-2">

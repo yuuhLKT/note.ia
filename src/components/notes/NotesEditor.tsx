@@ -20,9 +20,9 @@ export function NotesEditor() {
         if (id) {
             updateNote(id, { title, content })
         } else {
-            addNote({ title, content })
+            addNote({ title, content, files: [] })
         }
-        navigate('/notes')
+        navigate('/home')
     }
 
     return (
@@ -30,11 +30,11 @@ export function NotesEditor() {
             <div className="flex items-center justify-between mb-6">
                 <Button
                     variant="ghost"
-                    onClick={() => navigate('/notes')}
+                    onClick={() => navigate('/home')}
                     className="gap-2"
                 >
                     <ArrowLeft className="h-4 w-4" />
-                    Back to Notes
+                    Back to Home
                 </Button>
                 <div className="flex items-center gap-2">
                     {id && (

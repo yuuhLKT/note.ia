@@ -8,75 +8,87 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table'
+import { useGoogleDrive } from '@/hooks/use-google-drive'
+import { listFiles, uploadFile } from '@/services/googleDrive'
 import { formatDistanceToNow } from 'date-fns'
 import { File, FileImage, FileText, Folder, Search, Upload } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { FileUploadModal } from './FileUploadModal'
 
-const mockFiles = [
-    {
-        id: '1',
-        name: 'Project Documentation',
-        type: 'folder',
-        lastModified: new Date('2024-03-20'),
-        size: 0,
-    },
-    {
-        id: '2',
-        name: 'design-mockup.fig',
-        type: 'image',
-        lastModified: new Date('2024-03-19'),
-        size: 2500000,
-    },
-    {
-        id: '3',
-        name: 'requirements.pdf',
-        type: 'document',
-        lastModified: new Date('2024-03-18'),
-        size: 500000,
-    },
-]
-
-function getFileIcon(type: string) {
-    switch (type) {
-        case 'folder':
-            return <Folder className="h-4 w-4 text-muted-foreground" />
-        case 'image':
-            return <FileImage className="h-4 w-4 text-muted-foreground" />
-        case 'document':
-            return <FileText className="h-4 w-4 text-muted-foreground" />
-        default:
-            return <File className="h-4 w-4 text-muted-foreground" />
-    }
+interface DriveFile {
+    id: string
+    name: string
+    mimeType: string
+    modifiedTime: string
+    size?: string
 }
 
-function formatFileSize(bytes: number) {
-    if (bytes === 0) return '-'
+function getFileIcon(mimeType: string) {
+    if (mimeType === 'application/vnd.google-apps.folder') {
+        return <Folder className="h-4 w-4 text-muted-foreground" />
+    }
+    if (mimeType.startsWith('image/')) {
+        return <FileImage className="h-4 w-4 text-muted-foreground" />
+    }
+    if (mimeType.includes('document') || mimeType.includes('pdf')) {
+        return <FileText className="h-4 w-4 text-muted-foreground" />
+    }
+    return <File className="h-4 w-4 text-muted-foreground" />
+}
+
+function formatFileSize(bytes: string | undefined) {
+    if (!bytes) return '-'
+    const size = parseInt(bytes)
+    if (size === 0) return '-'
     const k = 1024
     const sizes = ['B', 'KB', 'MB', 'GB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`
+    const i = Math.floor(Math.log(size) / Math.log(k))
+    return `${parseFloat((size / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`
 }
 
 export function FileExplorer() {
     const [searchQuery, setSearchQuery] = useState('')
-    const [filteredFiles, setFilteredFiles] = useState(mockFiles)
+    const [files, setFiles] = useState<DriveFile[]>([])
+    const [filteredFiles, setFilteredFiles] = useState<DriveFile[]>([])
+    const { isConnected } = useGoogleDrive()
+
+    useEffect(() => {
+        if (isConnected) {
+            loadFiles()
+        }
+    }, [isConnected])
+
+    const loadFiles = async () => {
+        try {
+            const driveFiles = await listFiles()
+            setFiles(driveFiles)
+            setFilteredFiles(driveFiles)
+        } catch (error) {
+            console.error('Error loading files:', error)
+        }
+    }
 
     const handleSearch = (query: string) => {
         setSearchQuery(query)
         if (!query.trim()) {
-            setFilteredFiles(mockFiles)
+            setFilteredFiles(files)
             return
         }
-        const filtered = mockFiles.filter((file) =>
+        const filtered = files.filter((file) =>
             file.name.toLowerCase().includes(query.toLowerCase())
         )
         setFilteredFiles(filtered)
     }
 
-    const handleUploadComplete = (files: File[]) => {
-        // TODO: Implement file upload logic
-        console.log('Files to upload:', files)
+    const handleUploadComplete = async (files: File[]) => {
+        try {
+            for (const file of files) {
+                await uploadFile(file)
+            }
+            await loadFiles()
+        } catch (error) {
+            console.error('Error uploading files:', error)
+        }
     }
 
     return (
@@ -118,14 +130,14 @@ export function FileExplorer() {
                                     className="cursor-pointer hover:bg-muted/50"
                                 >
                                     <TableCell className="flex items-center gap-2">
-                                        {getFileIcon(file.type)}
+                                        {getFileIcon(file.mimeType)}
                                         <span className="font-medium">
                                             {file.name}
                                         </span>
                                     </TableCell>
                                     <TableCell>
                                         {formatDistanceToNow(
-                                            file.lastModified,
+                                            new Date(file.modifiedTime),
                                             {
                                                 addSuffix: true,
                                             }
@@ -142,7 +154,9 @@ export function FileExplorer() {
                                     colSpan={3}
                                     className="text-center py-4"
                                 >
-                                    No files found matching "{searchQuery}"
+                                    {searchQuery
+                                        ? `No files found matching "${searchQuery}"`
+                                        : 'No files uploaded yet'}
                                 </TableCell>
                             </TableRow>
                         )}

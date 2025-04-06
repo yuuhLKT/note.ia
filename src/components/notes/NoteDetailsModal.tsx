@@ -15,12 +15,13 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select'
+import { useGoogleDrive } from '@/hooks/use-google-drive'
+import { useToast } from '@/hooks/use-toast'
 import { useKanbanStore } from '@/store/kanban'
 import { useNotesStore } from '@/store/notes'
 import { format } from 'date-fns'
-import { FileText, Plus, Trash2, Upload } from 'lucide-react'
+import { ExternalLink, Plus, Trash2, Upload } from 'lucide-react'
 import { useState } from 'react'
-import { FileUploadModal } from '../files/FileUploadModal'
 import { TaskDetailsDialog } from './TaskDetailsDialog'
 
 interface NoteDetailsModalProps {
@@ -36,9 +37,12 @@ export function NoteDetailsModal({
 }: NoteDetailsModalProps) {
     const { notes, updateNote } = useNotesStore()
     const { tasks } = useKanbanStore()
+    const { uploadFile } = useGoogleDrive()
+    const { toast } = useToast()
     const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
     const [selectedFile, setSelectedFile] = useState('')
     const [newLink, setNewLink] = useState('')
+    const [isUploading, setIsUploading] = useState(false)
 
     const note = notes.find((n) => n.id === noteId)
     if (!note) return null
@@ -59,20 +63,41 @@ export function NoteDetailsModal({
         updateNote(noteId, { links })
     }
 
-    const handleAddFiles = (files: File[]) => {
-        const newFiles = files.map((file) => ({
-            id: Math.random().toString(36).substr(2, 9),
-            name: file.name,
-            type: file.type,
-            size: file.size,
-            url: URL.createObjectURL(file),
-        }))
-        const updatedFiles = [...(note.files || []), ...newFiles]
-        updateNote(noteId, { files: updatedFiles })
+    const handleFileUpload = async (files: File[]) => {
+        try {
+            setIsUploading(true)
+            const uploadedFiles = await Promise.all(
+                files.map(async (file) => {
+                    const response = await uploadFile(file)
+                    return {
+                        id: response.id,
+                        name: response.name,
+                        mimeType: response.mimeType,
+                        webViewLink: response.webViewLink,
+                        iconLink: response.iconLink,
+                    }
+                })
+            )
+            const updatedFiles = [...note.files, ...uploadedFiles]
+            updateNote(noteId, { files: updatedFiles })
+            toast({
+                title: 'Success',
+                description: 'Files uploaded successfully',
+            })
+        } catch (e) {
+            console.error(e)
+            toast({
+                title: 'Error',
+                description: 'Failed to upload files',
+                variant: 'destructive',
+            })
+        } finally {
+            setIsUploading(false)
+        }
     }
 
     const handleRemoveFile = (fileId: string) => {
-        const files = (note.files || []).filter((f) => f.id !== fileId)
+        const files = note.files.filter((f) => f.id !== fileId)
         updateNote(noteId, { files })
     }
 
@@ -201,36 +226,70 @@ export function NoteDetailsModal({
                                         className="flex items-center justify-between p-2 bg-muted/50 rounded"
                                     >
                                         <div className="flex items-center gap-2">
-                                            <FileText className="h-4 w-4" />
+                                            <img
+                                                src={file.iconLink}
+                                                alt={file.name}
+                                                className="h-4 w-4"
+                                            />
                                             <span className="text-sm">
                                                 {file.name}
                                             </span>
                                         </div>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() =>
-                                                handleRemoveFile(file.id)
-                                            }
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
+                                        <div className="flex items-center gap-2">
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() =>
+                                                    window.open(
+                                                        file.webViewLink,
+                                                        '_blank'
+                                                    )
+                                                }
+                                            >
+                                                <ExternalLink className="h-4 w-4" />
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() =>
+                                                    handleRemoveFile(file.id)
+                                                }
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </div>
                                     </div>
                                 ))}
 
                                 <div className="flex gap-2">
-                                    <FileUploadModal
-                                        trigger={
-                                            <Button
-                                                variant="outline"
-                                                className="flex-1"
-                                            >
-                                                <Upload className="mr-2 h-4 w-4" />
-                                                Upload Files
-                                            </Button>
-                                        }
-                                        onUploadComplete={handleAddFiles}
+                                    <input
+                                        type="file"
+                                        multiple
+                                        onChange={(e) => {
+                                            if (e.target.files) {
+                                                handleFileUpload(
+                                                    Array.from(e.target.files)
+                                                )
+                                            }
+                                        }}
+                                        className="hidden"
+                                        id="file-upload"
                                     />
+                                    <Button
+                                        variant="outline"
+                                        className="flex-1"
+                                        onClick={() =>
+                                            document
+                                                .getElementById('file-upload')
+                                                ?.click()
+                                        }
+                                        disabled={isUploading}
+                                    >
+                                        <Upload className="mr-2 h-4 w-4" />
+                                        {isUploading
+                                            ? 'Uploading...'
+                                            : 'Upload Files'}
+                                    </Button>
                                 </div>
 
                                 <div className="flex gap-2">
