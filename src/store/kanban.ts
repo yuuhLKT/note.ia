@@ -83,7 +83,7 @@ export const useKanbanStore = create<KanbanState>()(
                     const updatedTask = {
                         ...existingTask,
                         ...task,
-                        files: task.files !== undefined ? task.files : existingTask.files,
+                        attachments: task.attachments !== undefined ? task.attachments : existingTask.attachments,
                         updatedAt: new Date().toISOString()
                     }
                     console.log('Task atualizada:', updatedTask)

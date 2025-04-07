@@ -31,10 +31,14 @@ export function FileItem({
                 <p className="text-sm truncate">{file.name}</p>
                 {(showSize || showDate) && (
                     <div className="flex gap-2 text-xs text-muted-foreground">
-                        {showSize && <span>{formatFileSize(file.size)}</span>}
+                        {showSize && file.size && (
+                            <span>{formatFileSize(Number(file.size))}</span>
+                        )}
                         {showDate && (
                             <span>
-                                {file.lastModified.toLocaleDateString()}
+                                {new Date(
+                                    file.modifiedTime
+                                ).toLocaleDateString()}
                             </span>
                         )}
                     </div>
